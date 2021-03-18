@@ -68,6 +68,8 @@ class _MyHomePageState extends State<MyHomePage> {
     super.initState();
   }
 
+  ElevatedButton debugButton;
+
   final myController = TextEditingController();
   Image thumbnail = Image(image: AssetImage('images/yt.jpg'));
   var title = '';
@@ -75,10 +77,12 @@ class _MyHomePageState extends State<MyHomePage> {
   var author = '';
   var len = '';
   var qualityList;
+  var size = '';
 
   void getInfo(String text) async {
     try {
       setState(() {
+        loadLock = true;
         debug = 'FETCHING INFO';
       });
       var yt = YoutubeExplode();
@@ -93,14 +97,18 @@ class _MyHomePageState extends State<MyHomePage> {
       qualityList = toList(manifest.muxed);
       setState(() {
         selectedQuality = manifest.muxed.withHighestBitrate();
+        var f = NumberFormat("######0.0#", "en_US");
+        size = '${f.format(selectedQuality.size.totalMegaBytes)} MB';
       });
 
       setState(() {
+        loadLock = false;
         debug = 'READY TO DOWNLOAD';
       });
     } catch (e) {
       print(e.toString());
       setState(() {
+        loadLock = false;
         debug = e.toString();
       });
     }
@@ -117,6 +125,7 @@ class _MyHomePageState extends State<MyHomePage> {
   void download() async {
     try {
       setState(() {
+        loadLock = true;
         debug = 'FETCHING INFO';
       });
       var yt = YoutubeExplode();
@@ -155,6 +164,7 @@ class _MyHomePageState extends State<MyHomePage> {
           await fileStream.close();
           setState(() {
             debug = title + ' saved to Downloads folder';
+            loadLock = false;
           });
           print('done');
         });
@@ -169,6 +179,7 @@ class _MyHomePageState extends State<MyHomePage> {
     } catch (e) {
       print(e.toString());
       setState(() {
+        loadLock = false;
         debug = e.toString();
       });
     }
@@ -179,11 +190,32 @@ class _MyHomePageState extends State<MyHomePage> {
   onChange(MuxedStreamInfo info) {
     setState(() {
       selectedQuality = info;
+      var f = NumberFormat("######0.0#", "en_US");
+      size = '${f.format(selectedQuality.size.totalMegaBytes)} MB';
     });
   }
 
+  bool loadLock = false;
+
   @override
   Widget build(BuildContext context) {
+    var downloadCall;
+    if(!loadLock && id != null) {
+      downloadCall = () {
+        loadLock = true;
+        setState(() {});
+        download();
+      };
+    }
+
+    var fetchCall;
+    if(!loadLock) {
+      fetchCall = () {
+        loadLock = true;
+        setState(() {});
+        getInfo(myController.text);
+      };
+    }
     // This method is rerun every time setState is called, for instance as done
     // by the _incrementCounter method above.
     //
@@ -225,13 +257,12 @@ class _MyHomePageState extends State<MyHomePage> {
                 ), flex: 3,
               ),
               Flexible(child:
-              ElevatedButton(onPressed: () {
-                getInfo(myController.text);
-              }, child: Text("Fetch info")),
-                flex: 1,
-                fit: FlexFit.loose,
-              )
-            ]
+              ElevatedButton(onPressed: fetchCall,
+                  child: Text("Fetch info")),
+                  flex: 1,
+                  fit: FlexFit.loose,
+                )
+              ]
             ),
             Text('$debug'),
 
@@ -242,8 +273,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   (child: Column(
                       children: [
                         Text("title: $title", maxLines: 1, overflow: TextOverflow.ellipsis,),
-                        Text("author $author",  maxLines: 1, overflow: TextOverflow.ellipsis,),
-                        Text("length $len",  maxLines: 1, overflow: TextOverflow.ellipsis,)
+                        Text("author: $author",  maxLines: 1, overflow: TextOverflow.ellipsis,),
+                        Text("length: $len",  maxLines: 1, overflow: TextOverflow.ellipsis,),
+                        Text("size: $size",  maxLines: 1, overflow: TextOverflow.ellipsis,),
                       ], crossAxisAlignment: CrossAxisAlignment.start,
                     ), padding: EdgeInsets.all(5),
                   ), flex: 2
@@ -263,9 +295,7 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
               Flexible(child:
                 ElevatedButton(
-                    onPressed: () {
-                      download();
-                    },
+                    onPressed: downloadCall,
                     child: Text("DOWNLOAD")
                 ), flex: 1,
               ),
