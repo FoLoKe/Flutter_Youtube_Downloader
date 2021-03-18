@@ -153,6 +153,9 @@ class _MyHomePageState extends State<MyHomePage> {
       }
     } catch (e) {
       print(e.toString());
+      setState(() {
+        debug = e.toString();
+      });
     }
   }
 
