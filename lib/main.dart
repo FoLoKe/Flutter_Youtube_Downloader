@@ -27,7 +27,7 @@ class MyApp extends StatelessWidget {
         // is not restarted.
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(title: 'Download yt video'),
+      home: MyHomePage(title: 'FoLoKe\'s YouTube Downloader'),
     );
   }
 }
@@ -51,7 +51,7 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  String debug = 'Specify yt link';
+  String debug = '';
 
   void getPermission() async {
     print("getPermission");
@@ -68,21 +68,68 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   final myController = TextEditingController();
+  Image thumbnail = Image(image: AssetImage('images/yt.jpg'));
+  var title = '';
+  var id;
+  var author = '';
+  var len = '';
+  var qualityList;
 
-  void getInfo() async {
-    // You can provider either a video ID or URL as String or an instance of `VideoId`.
-    var yt = YoutubeExplode();
+  void getInfo(String text) async {
     try {
-      var video = await yt.videos.get(myController.text); // Returns a Video instance.
-      var title = video.title;
-      debug = title + ' is now loading';
-      setState(() {});
+      setState(() {
+        debug = 'FETCHING INFO';
+      });
+      var yt = YoutubeExplode();
+      var video = await yt.videos.get(myController.text);
 
-      var manifest = await yt.videos.streamsClient.getManifest(myController.text);
-      var streamInfo = manifest.muxed.withHighestBitrate();
-      if (streamInfo != null) {
+      title = video.title;
+      id = video.id;
+      thumbnail = Image.network(video.thumbnails.highResUrl);
+      author = video.author;
+      len = video.duration.toString();
+      var manifest = await yt.videos.streamsClient.getManifest(id);
+
+      qualityList = toList(manifest.muxed);
+      setState(() {
+        selectedQuality = manifest.muxed.withHighestBitrate();
+      });
+
+      setState(() {
+        debug = 'READY TO DOWNLOAD';
+      });
+    } catch (e) {
+      print(e.toString());
+      setState(() {
+        debug = e.toString();
+      });
+    }
+  }
+
+  List<DropdownMenuItem<MuxedStreamInfo>> toList(Iterable<MuxedStreamInfo> infos) {
+    List<DropdownMenuItem<MuxedStreamInfo>> list =  [];
+    for(MuxedStreamInfo info in infos) {
+      list.add(DropdownMenuItem(value: info, child: Text(info.videoQualityLabel),));
+    }
+    return list;
+  }
+
+  void download() async {
+    try {
+      setState(() {
+        debug = 'FETCHING INFO';
+      });
+      var yt = YoutubeExplode();
+      var video = await yt.videos.get(id);
+      var title = video.title;
+
+      if (selectedQuality != null) {
+        var qualityLabel = selectedQuality.videoQualityLabel;
+        setState(() {
+          debug = 'DOWNLOADING $qualityLabel $title)';
+        });
         // Get the actual stream
-        var stream = yt.videos.streamsClient.get(streamInfo);
+        var stream = yt.videos.streamsClient.get(selectedQuality);
 
         String path =
         await ExtStorage.getExternalStoragePublicDirectory(
@@ -90,7 +137,7 @@ class _MyHomePageState extends State<MyHomePage> {
         print(path);
 
         // Open a file for writing.
-        var file = File('$path/$title.mp4');
+        var file = File('$path/$title-$qualityLabel.mp4');
         var fileStream = file.openWrite();
 
         // Pipe all the content of the stream into the file.
@@ -99,18 +146,23 @@ class _MyHomePageState extends State<MyHomePage> {
         // Close the file.
         await fileStream.flush();
         await fileStream.close();
-        debug = title + ' saved to Downloads folder';
-        setState(() {});
+        setState(() {
+          debug = title + ' saved to Downloads folder';
+        });
         print('done');
       }
     } catch (e) {
       print(e.toString());
-      debug = e.toString();
-      setState(() {});
     }
   }
 
-  TextField textField = TextField();
+  MuxedStreamInfo selectedQuality;
+
+  onChange(MuxedStreamInfo info) {
+    setState(() {
+      selectedQuality = info;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -147,19 +199,64 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             Text('Enter yt link here:'),
-            TextField(controller: myController),
+            Row(children: <Widget>[
+              Flexible(child:
+                Padding(child: 
+                  TextField(controller: myController),
+                  padding: EdgeInsets.all(10.0),
+                ), flex: 3,
+              ),
+              Flexible(child:
+              ElevatedButton(onPressed: () {
+                getInfo(myController.text);
+              }, child: Text("Fetch info")),
+                flex: 1,
+                fit: FlexFit.loose,
+              )
+            ]
+            ),
             Text('$debug'),
+
+            Padding(padding: EdgeInsets.all(10.0), child:
+              Row(children: [
+                Flexible(child: thumbnail, flex: 1),
+                Flexible(child: Padding
+                  (child: Column(
+                      children: [
+                        Text("title: $title", maxLines: 1, overflow: TextOverflow.ellipsis,),
+                        Text("author $author",  maxLines: 1, overflow: TextOverflow.ellipsis,),
+                        Text("length $len",  maxLines: 1, overflow: TextOverflow.ellipsis,)
+                      ], crossAxisAlignment: CrossAxisAlignment.start,
+                    ), padding: EdgeInsets.all(5),
+                  ), flex: 2
+                ),
+              ], crossAxisAlignment: CrossAxisAlignment.start,),
+            ),
+
+            Padding(child: Row(children: [
+              Flexible(child:
+                DropdownButton(
+                  items: qualityList,
+                  value: selectedQuality,
+                  onChanged: onChange,
+                ),
+                flex: 1,
+                fit: FlexFit.loose,
+              ),
+              Flexible(child:
+                ElevatedButton(
+                    onPressed: () {
+                      download();
+                    },
+                    child: Text("DOWNLOAD")
+                ), flex: 1,
+              ),
+            ], mainAxisAlignment: MainAxisAlignment.center,
+            ), padding: EdgeInsets.all(10.0),
+            ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          getInfo();
-          setState(() {});
-        },
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
