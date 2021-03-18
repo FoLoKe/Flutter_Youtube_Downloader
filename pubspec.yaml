@@ -27,6 +27,7 @@ dependencies:
   youtube_explode_dart: ^1.8.0
   permission_handler: ^6.1.0
   ext_storage: any
+  intl: ^0.15.7
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

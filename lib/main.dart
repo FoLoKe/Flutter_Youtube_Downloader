@@ -3,6 +3,7 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 
 import 'package:ext_storage/ext_storage.dart';
 import 'dart:io';
+import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 void main() {
@@ -89,7 +90,6 @@ class _MyHomePageState extends State<MyHomePage> {
       author = video.author;
       len = video.duration.toString();
       var manifest = await yt.videos.streamsClient.getManifest(id);
-
       qualityList = toList(manifest.muxed);
       setState(() {
         selectedQuality = manifest.muxed.withHighestBitrate();
@@ -139,17 +139,32 @@ class _MyHomePageState extends State<MyHomePage> {
         // Open a file for writing.
         var file = File('$path/$title-$qualityLabel.mp4');
         var fileStream = file.openWrite();
+        var len = 0;
+        var maxLen = selectedQuality.size.totalBytes;
+
+        stream.listen((value) async {
+          len += value.length;
+          var progress = len / maxLen * 100;
+          var f = NumberFormat("##0.0#", "en_US");
+          setState(() {
+            debug =  f.format(progress) + '%';
+          });
+          fileStream.add(value);
+        }).onDone(() async {
+          await fileStream.flush();
+          await fileStream.close();
+          setState(() {
+            debug = title + ' saved to Downloads folder';
+          });
+          print('done');
+        });
 
         // Pipe all the content of the stream into the file.
-        await stream.pipe(fileStream);
+        //await stream.pipe(fileStream);
 
         // Close the file.
-        await fileStream.flush();
-        await fileStream.close();
-        setState(() {
-          debug = title + ' saved to Downloads folder';
-        });
-        print('done');
+        //await fileStream.flush();
+        //await fileStream.close();
       }
     } catch (e) {
       print(e.toString());
